@@ -3,7 +3,6 @@ from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 
 class User(AbstractUser): 
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     is_admin = models.BooleanField('is admin', default=False)
     is_staff = models.BooleanField('is staff', default=False)
     is_pelanggan = models.BooleanField('is pelanggan', default=False)

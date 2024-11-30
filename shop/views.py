@@ -1,57 +1,99 @@
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
-from .models import Page, Product, Category, Cart, CartItem, Order, Review
+from django.db import models
+from django.contrib.auth.models import User
+from django.utils.text import slugify
 
-def product_list(request):
-    categories = Category.objects.all()
-    products = Product.objects.all()
-    return render(request, 'catalog/product_list.html', {'categories': categories, 'products': products})
+# 1. Model Kategori
+class Kategori(models.Model):
+    name = models.CharField(max_length=10, unique=True, verbose_name="Nama Kategori")
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
+    description = models.TextField(verbose_name="Deskripsi", blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Dibuat pada")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Diperbarui pada")
 
-def product_detail(request, slug):
-    product = get_object_or_404(Product, slug=slug)
-    return render(request, 'catalog/product_detail.html', {'product': product})
+    class Meta:
+        verbose_name = "Kategori"
+        verbose_name_plural = "Kategori"
+        ordering = ['name']
 
-@login_required
-def add_to_cart(request, product_id):
-    product = get_object_or_404(Product, id=product_id)
-    cart, created = Cart.objects.get_or_create(user=request.user)
-    cart_item, created = CartItem.objects.get_or_create(cart=cart, product=product)
-    if not created:
-        cart_item.quantity += 1
-        cart_item.save()
-    return redirect('cart_detail')
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
-@login_required
-def cart_detail(request):
-    cart = Cart.objects.get(user=request.user)
-    return render(request, 'catalog/cart_detail.html', {'cart': cart})
+    def __str__(self):
+        return self.name
 
-@login_required
-def checkout(request):
-    cart = Cart.objects.get(user=request.user)
-    order = Order.objects.create(
-        user=request.user,
-        total_amount=cart.total_price(),
-        is_paid=False
-    )
-    cart.items.all().delete()  # Clear the cart after checkout
-    return render(request, 'catalog/order_confirmation.html', {'order': order})
+# 2. Model Produk
+class Product(models.Model):
+    name = models.TextField(unique=True, verbose_name="Nama Produk")
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
+    description = models.TextField(verbose_name="Deskripsi", blank=True, null=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="Harga")
+    category = models.ForeignKey(Kategori, on_delete=models.CASCADE, related_name='products', verbose_name="Kategori")
+    stock_produk = models.PositiveIntegerField(verbose_name="Stok")
+    stock_diskon = models.PositiveIntegerField(verbose_name="Stok Diskon")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Dibuat pada")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Diperbarui pada")
+    merek_produk = models.CharField(max_length=7)
+    bahan = models.CharField(max_length= 10)
+    
+    is_active = models.BooleanField(default=True, verbose_name="Aktif")
 
-@login_required
-def add_review(request, product_id):
-    product = get_object_or_404(Product, id=product_id)
-    if request.method == 'POST':
-        rating = request.POST.get('rating')
-        comment = request.POST.get('comment')
-        Review.objects.create(
-            product=product,
-            user=request.user,
-            rating=rating,
-            comment=comment
-        )
-    return redirect('product_detail', slug=product.slug)
+    class Meta:
+        verbose_name = "Produk"
+        verbose_name_plural = "Produk"
+        ordering = ['name']
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        super().save(*args, **kwargs)
 
-def page_detail(request, slug):
-    page = get_object_or_404(Page, slug=slug, published=True)
-    return render(request, 'catalog/page_detail.html', {'page': page})
+    def __str__(self):
+        return self.name
+    
+class Catalog(models.Model):
+	nama_produk = models.CharField(max_length=100)
+	slug = models.SlugField()
+
+# 3. Model UserProfile
+class UserProfile(models.Model):
+    shipping_address = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=15)
+
+    def __str__(self):
+        return f"{self.user.username}'s Profile"
+
+# 4. Model Cart dan CartItem
+class Cart(models.Model):
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Cart {self.id} for {self.user.username}"
+
+class CartItem(models.Model):
+    cart = models.ForeignKey(Cart, on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+
+    def __str__(self):
+        return f"{self.quantity} of {self.product.name}"
+
+# 5. Model Order dan OrderItem
+class Order(models.Model):
+    products = models.ManyToManyField(Product, related_name='orders')
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    order_date = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=20, choices=[('PENDING', 'Pending'), ('SHIPPED', 'Shipped'), ('DELIVERED', 'Delivered')])
+
+    def __str__(self):
+        return f"Order {self.id} by {self.user.username}"
+
+class OrderItem(models.Model):
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_items')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.quantity} x {self.product.name} for order {self.order.id}"

@@ -16,9 +16,9 @@ class Kategori(models.Model):
         ordering = ['name']
 
     def save(self, *args, **kwargs):
-        if not self.slug:
-            self.slug = slugify(self.name)
-        super().save(*args, **kwargs)
+     if not self.slug:
+        self.slug = slugify(self.name)
+     super(Kategori, self).save(*args, **kwargs)  # Memanggil metode save() dari kelas induk (models.Model)
 
     def __str__(self):
         return self.name
@@ -53,21 +53,25 @@ class Product(models.Model):
         return self.name
     
 class Catalog(models.Model):
-	nama_produk = models.CharField(max_length=100)
-	slug = models.SlugField()
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, default=1)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='catalogs')
+    nama_produk = models.CharField(max_length=100)
+    slug = models.SlugField()
+
+    def __str__(self):
+        return self.nama_produk
 
 # 3. Model UserProfile
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
     shipping_address = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=15)
 
     def __str__(self):
         return f"{self.user.username}'s Profile"
 
+
 # 4. Model Cart dan CartItem
 class Cart(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -83,8 +87,6 @@ class CartItem(models.Model):
 
 # 5. Model Order dan OrderItem
 class Order(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    products = models.ManyToManyField(Product, related_name='orders')
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     order_date = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=[('PENDING', 'Pending'), ('SHIPPED', 'Shipped'), ('DELIVERED', 'Delivered')])
